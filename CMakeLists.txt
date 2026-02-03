@@ -24,8 +24,10 @@ find_package(image_transport REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(camera_info_manager REQUIRED)
 find_package(HIDAPI REQUIRED)
 find_package(LIBUSB 1 REQUIRED)
+find_package(OpenCV REQUIRED)
 
 include_directories(
   include/zed_cpu
@@ -59,6 +61,7 @@ ament_target_dependencies(zed_node
   rclcpp
   sensor_msgs
   std_msgs
+  camera_info_manager
 )
 
 install(
@@ -66,7 +69,7 @@ install(
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY launch
+install(DIRECTORY launch config
   DESTINATION share/${PROJECT_NAME}
 )
 

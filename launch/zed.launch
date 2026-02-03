@@ -1,5 +1,8 @@
 <launch>
 
-    <node pkg="zed_cpu" exec="zed_node" name="zed_node"/>
+    <node pkg="zed_cpu" exec="zed_node" name="zed_node">
+        <param name="camera_info_frame_id" value="robot_front_rgbd_camera_left_camera_optical_frame"/>
+        <param name="camera_info_url" value="package://zed_cpu/config/camera_calibration.yaml"/>
+    </node>
 
 </launch>
