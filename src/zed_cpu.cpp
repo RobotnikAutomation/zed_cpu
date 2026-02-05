@@ -16,29 +16,76 @@
 namespace zed_cpu
 {
 
+ZedCameraInfoHandler::ZedCameraInfoHandler(std::string url, std::string frame_id, std::string topic_name, rclcpp::Node::SharedPtr node)
+: node_{node}
+, camera_frame_id_{frame_id}
+, camera_info_manager_{std::make_shared<camera_info_manager::CameraInfoManager>(node_.get(), "zed_camera", url)}
+, camera_info_pub_{node_->create_publisher<camera_info_manager::CameraInfo>(topic_name, 1)}
+{
+  camera_info_manager_->loadCameraInfo(url);
+}
+
+void ZedCameraInfoHandler::PublishCameraInfo(rclcpp::Time timestamp)
+{
+  if (camera_info_manager_->isCalibrated()) {
+    sensor_msgs::msg::CameraInfo camera_info_msg = camera_info_manager_->getCameraInfo();
+    camera_info_msg.header.stamp = timestamp;
+    camera_info_msg.header.frame_id = camera_frame_id_;
+    camera_info_pub_->publish(camera_info_msg);
+  }
+  else
+  {
+    RCLCPP_WARN_THROTTLE(
+      node_->get_logger(), *node_->get_clock(), 5000,
+      "Camera is not calibrated. Cannot publish camera info.");
+  }
+}
+
 ZedCameraNode::ZedCameraNode() : Node("zed_camera", "zed_camera")
 {
-  this->declare_parameter<std::string>("camera_info_frame_id", "zed_camera_frame");
-  this->declare_parameter<std::string>("camera_info_url", "");
+  this->declare_parameter<std::string>("left_camera_info_frame_id", "zed_camera_frame");
+  this->declare_parameter<std::string>("right_camera_info_frame_id", "zed_camera_frame");
+  this->declare_parameter<std::string>("left_camera_info_url", "");
+  this->declare_parameter<std::string>("right_camera_info_url", "");
 
-  this->get_parameter("camera_info_frame_id", camera_frame_id_);
-  this->get_parameter("camera_info_url", camera_info_url_);
+  this->get_parameter("left_camera_info_frame_id", left_camera_frame_id_);
+  this->get_parameter("right_camera_info_frame_id", right_camera_frame_id_);
+  this->get_parameter("left_camera_info_url", left_camera_info_url_);
+  this->get_parameter("right_camera_info_url", right_camera_info_url_);
 
-  camera_info_manager_ = std::make_shared<camera_info_manager::CameraInfoManager>(this, "zed_camera", camera_info_url_);
-  camera_info_manager_->loadCameraInfo(camera_info_url_);
-
+  camera_info_created_ = false;
   // ROS initialization
   left_image_pub_ = std::make_unique<image_transport::Publisher>(image_transport::create_publisher(this, "rgb/left_image"));
   right_image_pub_ = std::make_unique<image_transport::Publisher>(image_transport::create_publisher(this, "rgb/right_image"));
 
   imu_pub_ = this->create_publisher<sensor_msgs::msg::Imu>("imu_data", 1);
-  camera_info_pub_ = this->create_publisher<camera_info_manager::CameraInfo>("rgb/camera_info", 1);
 
   CameraInit();
   SensorInit();
 
 
   RCLCPP_INFO(this->get_logger(), "Node started");
+}
+
+void ZedCameraNode::InitCameraInfo()
+{
+  if (!camera_info_created_)
+  {
+    left_camera_info_ = std::make_unique<ZedCameraInfoHandler>(
+      left_camera_info_url_,
+      left_camera_frame_id_,
+      "rgb/left_camera/camera_info",
+      this->shared_from_this()
+    );
+
+    right_camera_info_ = std::make_unique<ZedCameraInfoHandler>(
+      right_camera_info_url_,
+      right_camera_frame_id_,
+      "rgb/right_camera/camera_info",
+      this->shared_from_this()
+    );
+    camera_info_created_ = true;
+  }
 }
 
 void ZedCameraNode::run()
@@ -120,13 +167,18 @@ void ZedCameraNode::PublishImages()
     auto now = this->get_clock()->now();
     left_msg->header.stamp = now;
     right_msg->header.stamp = now;
-    left_msg->header.frame_id = camera_frame_id_;
+    left_msg->header.frame_id = left_camera_frame_id_;
+    right_msg->header.frame_id = right_camera_frame_id_;
 
     // Publish the left and right image messages
     left_image_pub_->publish(left_msg);
     right_image_pub_->publish(right_msg);
 
-    PublishCameraInfo(now);
+    if (camera_info_created_)
+    {
+      left_camera_info_->PublishCameraInfo(now);
+      right_camera_info_->PublishCameraInfo(now);
+    }
   }
 }
 
@@ -152,22 +204,6 @@ void ZedCameraNode::PublishIMU()
 
     // Publish the sensor_msgs/Imu message
     imu_pub_->publish(imu_msg);
-  }
-}
-
-void ZedCameraNode::PublishCameraInfo(rclcpp::Time timestamp)
-{
-  if (camera_info_manager_->isCalibrated()) {
-    sensor_msgs::msg::CameraInfo camera_info_msg = camera_info_manager_->getCameraInfo();
-    camera_info_msg.header.stamp = timestamp;
-    camera_info_msg.header.frame_id = camera_frame_id_;
-    camera_info_pub_->publish(camera_info_msg);
-  }
-  else
-  {
-    RCLCPP_WARN_THROTTLE(
-      this->get_logger(), *this->get_clock(), 5000,
-      "Camera is not calibrated. Cannot publish camera info.");
   }
 }
 

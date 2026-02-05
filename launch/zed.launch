@@ -1,8 +1,15 @@
 <launch>
-
-    <node pkg="zed_cpu" exec="zed_node" name="zed_node">
-        <param name="camera_info_frame_id" value="robot_front_rgbd_camera_left_camera_optical_frame"/>
-        <param name="camera_info_url" value="package://zed_cpu/config/camera_calibration.yaml"/>
-    </node>
+    <arg name="robot_id" default="$(env ROBOT_ID robot)" />
+    <group>
+        <push-ros-namespace namespace="$(var robot_id)"/>
+        <node pkg="zed_cpu" exec="zed_node" name="front_rgbd_camera" output="screen" respawn="true">
+            <param name="left_camera_info_frame_id" value="robot_front_rgbd_camera_left_camera_optical_frame"/>
+            <param name="right_camera_info_frame_id" value="robot_front_rgbd_camera_right_camera_optical_frame"/>
+            <param name="left_camera_info_url" value="package://zed_cpu/config/camera_calibration.yaml"/>
+            <param name="right_camera_info_url" value="package://zed_cpu/config/camera_calibration.yaml"/>
+            <remap from="rgb/left_camera/camera_info" to="~/color/camera_info"/>
+            <remap from="rgb/left_image" to="~/color/image_raw"/>
+        </node>
+    </group>
 
 </launch>
